@@ -1,6 +1,7 @@
 ;;; julia-vterm.el --- A mode for Julia REPL using vterm -*- lexical-binding: t -*-
 
 ;; Copyright (C) 2020 Shigeaki Nishina
+;; Copyright (C) 2016  Tamas K. Papp
 
 ;; Author: Shigeaki Nishina
 ;; Maintainer: Shigeaki Nishina
@@ -75,9 +76,34 @@
     (define-key map (kbd "C-l") #'recenter-top-bottom)
     map))
 
+(defvar julia-vterm-repl--compilation-regexp-alist
+  '(;; matches "while loading /tmp/Foo.jl, in expression starting on line 2"
+    (julia-load-error . ("while loading \\([^ ><()\t\n,'\";:]+\\), in expression starting on line \\([0-9]+\\)" 1 2))
+    ;; matches "around /tmp/Foo.jl:2", also starting with "at" or "Revise"
+    (julia-loc . ("\\(around\\|at\\|Revise\\) \\([^ ><()\t\n,'\";:]+\\):\\([0-9]+\\)" 2 3))
+    ;; matches "omitting file /tmp/Foo.jl due to parsing error near line 2", from Revise.parse_source!
+    (julia-warn-revise . ("omitting file \\([^ ><()\t\n,'\";:]+\\) due to parsing error near line \\([0-9]+\\)" 1 2))
+    )
+  "Specifications for highlighting error locations.
+
+Uses function ‘compilation-shell-minor-mode’.")
+
+(defun julia-vterm-repl--setup-compilation-mode (&optional basedir)
+  "Setup compilation mode for the the current buffer.
+
+BASEDIR is used for resolving relative paths."
+  (setq-local compilation-error-regexp-alist-alist
+              julia-vterm-repl--compilation-regexp-alist)
+  (setq-local compilation-error-regexp-alist
+              (mapcar #'car compilation-error-regexp-alist-alist))
+  (when basedir
+    (setq-local compilation-search-path (list basedir)))
+  (compilation-shell-minor-mode 1))
+
 (define-derived-mode julia-vterm-repl-mode vterm-mode "Inf-Julia"
   "A major mode for inferior Julia REPL."
-  :group 'julia-vterm-repl)
+  :group 'julia-vterm-repl
+  (julia-vterm-repl--setup-compilation-mode))
 
 (defun julia-vterm-repl-buffer-name (&optional session-name)
   "Return a Julia REPL buffer name whose session name is SESSION-NAME."
