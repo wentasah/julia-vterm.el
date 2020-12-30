@@ -273,11 +273,34 @@ With a prefix argument ARG (or interactively C-u), use Revise.includet() instead
 	  (setq default-directory buffer-directory)))
     (message "The buffer is not associated with a directory.")))
 
+(defun julia-vterm-activate-parent (arg)
+  "Look for a project file in the parent directories, if found, activate the project.
+
+When called with a prefix argument, activate the home project."
+  (interactive "P")
+  (if arg
+      (progn
+        (message "activating home project")
+        (julia-vterm-paste-string "import Pkg; Pkg.activate()")
+	(julia-vterm-send-return-key))
+    (cl-flet ((find-projectfile (filename)
+                                (locate-dominating-file (buffer-file-name) filename)))
+      (if-let ((projectfile (or (find-projectfile "Project.toml")
+                                (find-projectfile "JuliaProject.toml"))))
+          (progn
+            (message "activating %s" projectfile)
+            (julia-vterm-paste-string
+             (concat "import Pkg; Pkg.activate(\""
+                     (expand-file-name (file-name-directory projectfile)) "\")"))
+	    (julia-vterm-send-return-key))
+        (message "could not find project file")))))
+
 ;;;###autoload
 (define-minor-mode julia-vterm-mode
   "A minor mode for a Julia script buffer that interacts with an inferior Julia REPL."
   nil "⁂"
-  `((,(kbd "C-c C-z") . julia-vterm-switch-to-repl-buffer)
+  `((,(kbd "C-c C-a")    . julia-vterm-activate-parent)
+    (,(kbd "C-c C-z") . julia-vterm-switch-to-repl-buffer)
     (,(kbd "C-<return>") . julia-vterm-send-region-or-current-line)
     (,(kbd "C-c C-b") . julia-vterm-send-buffer)
     (,(kbd "C-c C-i") . julia-vterm-send-include-buffer-file)
